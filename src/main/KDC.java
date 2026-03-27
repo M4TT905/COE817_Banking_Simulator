@@ -5,6 +5,8 @@
  */
 package main;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -13,6 +15,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
+import javax.crypto.SecretKey;
 
 
 /**
@@ -22,7 +25,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class KDC {
     protected static final int PORT = 8170;
     protected static final String PRK = "MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBAKcHaPM83FK5murNheosWlrsdhF7Lw8FGszwj4g7ihB8NycQf1TSrS+YAFjs58sWgDn4aBPWZGOrh/SxiN7HwCaG8ZiDlWO9GviOGHW3Kbp8pzHxp9kU3Q2aDQ8Yg9P0x0HDzQsqGdIo6TOkRqNVweSBaPnXOYRsNZB4GM+BvDo/AgMBAAECgYEAnUxeKwv61bFT0qLA5brlUNF1k5r1w2hkR/KYyYyAxmukqRZhQ+mwDa1RTm21EU5cbbuhkGUMX80PmYKESoHFUzlcYvm4AVRY7SPVQPbe4iYB4nacUZU5uOT42WqLkO8USjrafCx3HxSeWS+wHnbjQqjNz5G6qoKpBt4ysCLg6yECQQDwA1W5zq4KtbqwFZfGofQbvcqkaMUTeBp8D+hUeaxGgFwfuEDEaHNP4hC3FoCPif//jirsAE34xnNn04+cG9bPAkEAsieP0S8vZIxEP2JRU9vvMITTMF2vJx8qg0A9sX+6OaF1od8hSDV21wOvrcqTV54XyE/d6ChCb9GtHvbGgANBkQJAarQQ2JpaJcjFRqNS5qv5qpumC5HIi+9JVv57e5LcVDucuT1hDfCh01HdvIf0f9wKQ8Mgseswvvj7NZ2Iqw51YQJAR42gM7Ix5L55gsOoSnghP2l5sQlPmfTojEK3BJ16XD8/Eb6ejXP7wSwX2UNtnlk+0BNT2zSgSmz6jV8sJqooIQJAIgwbBswiFZDr3wdV7wq3bBK/wYO+D3db5wm8XQUh68FirleDiWRTzyxGHih/BK4Phgiok92K5PvV3PAiSZfGBw==";
-    protected static final String ID = "KDC";
+    protected static final String ID = "The Bank";
     protected static final String DELIM_REGEX = "\\|";
     protected static final char DELIM = '|';
     protected static final String U_DELIM_REGEX = "~";
@@ -36,18 +39,35 @@ public class KDC {
     private CopyOnWriteArrayList<KDCThread> threads = new CopyOnWriteArrayList<>();
     private BlockingQueue<String> notifications = new LinkedBlockingQueue<>();
     
+    // Where usernames/pwrds are stored
+    private static final String USER_FILENAME = "";
+    protected Map<String, String> users = new ConcurrentHashMap<>(); 
     
     private Socket csock = null;        // Client Socket
     private ServerSocket ssock = null;  // Server Socket
     
+    private void loadUsers() throws IOException {
+        try (BufferedReader br = new BufferedReader(new FileReader(USER_FILENAME))) {
+            String line;
+            while((line = br.readLine()) != null) {
+                String[] parts = line.split(DELIM_REGEX);
+                users.put(parts[0], parts[1]); // <username, H(password)>
+            }
+        } 
+    }
+    
     private KDC() {
         try {
+            loadUsers(); // Load all users into the system
             ssock = new ServerSocket(PORT);
             run();
         } catch (IOException IOException) {
             IOException.printStackTrace();
         }
     }
+    
+    
+    
     
     private void run() throws IOException {
         System.out.println("\033[33mServer started\033[0m");
@@ -56,7 +76,7 @@ public class KDC {
             csock = ssock.accept();
             System.out.println("Client accepted");
             
-            KDCThread client_thread = new KDCThread(csock, key_map, notifications);
+            KDCThread client_thread = new KDCThread(csock, key_map, notifications, users);
             threads.add(client_thread);
             
             Thread t = new Thread(client_thread);

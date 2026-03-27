@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import javax.crypto.SecretKey;
 
 /**
  *
@@ -38,10 +39,17 @@ public class KDCThread implements Runnable{
     private BufferedReader input = null;
     private Set<String> nonces = new HashSet<>();
     
-    public KDCThread(Socket csock, Map<String, ClientData> key_map, BlockingQueue<String> notifications) {
+    private SecretKey ORIGINAL_KEY = null;
+    private SecretKey MasterSecret = null;
+    
+    private final Map<String, String> users;
+    
+    
+    public KDCThread(Socket csock, Map<String, ClientData> key_map, BlockingQueue<String> notifications, Map<String, String> users) {
         this.csock = csock;
         this.map = key_map;
         this.notifications = notifications;
+        this.users = users;
         
         try {
             output = new PrintWriter(csock.getOutputStream(), true);
@@ -49,18 +57,60 @@ public class KDCThread implements Runnable{
         } catch (IOException e) {}
         
         try { // Generate the private key
-            PKCS8EncodedKeySpec prspec = new PKCS8EncodedKeySpec(conv(KDC.PRK));
+            PKCS8EncodedKeySpec prspec = new PKCS8EncodedKeySpec(Encryption.conv(KDC.PRK));
             prk = KeyFactory.getInstance("RSA").generatePrivate(prspec);
+        
         } catch (Exception e) {}
     }
     
     
     private String read() { try { return input.readLine(); } catch (Exception e) { return null;} }
     private void write(String s) { try { output.println(s); } catch (Exception e) {} }
-    private byte[] conv(String s) { return Base64.getDecoder().decode(s); }
+    
+    
+    private void syncKeys() {
+        String in = read();
+        String parts[] = in.split(KDC.DELIM_REGEX);
+        String id = parts[0];
+        Nonce n_a = Nonce.toNonce(parts[1]);
+        if (nonces.contains(n_a.toString())) {
+            System.out.println(ansi.BOLD + ansi.BRED + "Nonces aren't working out" + ansi.RESET);
+            System.exit(-1);
+        } else { nonces.add(n_a.toString()); }
+        
+        ORIGINAL_KEY = PreprogrammedKeys.getKey(id);
+        if (ORIGINAL_KEY == null) {
+            write("Invalid id");
+            System.out.println(ansi.BOLD + ansi.BRED + "Invalid Key Used -- Terminating thread" + ansi.RESET);
+            System.exit(-1);
+        }
+        
+        Nonce n_b = new Nonce();
+        write(id + KDC.DELIM + n_a.toString() + KDC.DELIM + n_b.toString());
+        // By this point server & client agree on key
+    }
+    
+    private boolean loginUser() {
+        String in = read();
+        String dec = Encryption.decrypt(in, ORIGINAL_KEY);
+        String parts[] = dec.split(KDC.DELIM_REGEX);
+        String username = parts[0];
+        String password_hash = parts[1];
+        Nonce N_A = Nonce.toNonce(parts[2]);
+        
+        String stored_password = users.get(username);
+        
+    
+        return false;
+    }
+    
+    
+    
     
     private void setup() {
         cd = new ClientData();
+        
+        loginUser();
         
         // Read input
         String in = read();
