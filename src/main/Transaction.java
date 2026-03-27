@@ -47,7 +47,7 @@ public class Transaction {
      * @param amount the amount involved in the transaction
      * @return the status of the transaction ("success" or "failed")
      */
-    public String sendAction(Action action, double amount, int ){
+    public String sendAction(Action action, double amount){
         String status = "failed";
         return status;
     }
