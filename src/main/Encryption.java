@@ -1,9 +1,11 @@
 package main;
 
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.KeyFactory;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -16,6 +18,7 @@ import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 
 /*
  * To change this license header, choose License Headers in Project Properties.
@@ -155,6 +158,17 @@ public class Encryption {
     }
     
     /**
+     * Converts a string into a symmetric key
+     * @param skey The symmetric key string
+     * @return Returns a SecretKey object
+     * @throws Exception 
+     */
+    public static SecretKey makeSymmetricKey(String skey) throws Exception {
+        byte[] bytes = conv(skey);
+        return new SecretKeySpec(bytes, 0, bytes.length, "AES");
+    }
+    
+    /**
      * Digital signature sign function
      * @param msg Message to sign
      * @param prk The private key to sign with
@@ -187,6 +201,40 @@ public class Encryption {
         } catch (Exception e) {
             return false;
         }
+    }
+    
+    /**
+     * Hashes a message with SHA256
+     * @param msg The message to hash
+     * @return Returns the hashed message as a string
+     * @throws Exception 
+     */
+    public static String hash(String msg) throws Exception {
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        byte[] digest = md.digest(msg.getBytes(StandardCharsets.UTF_8));
+        return Base64.getEncoder().encodeToString(digest);
+    }
+    
+    
+    /**
+     * Derives the master secret key from the original Symmetric key and the two Nonces
+     * @param key Original Symmetric Key
+     * @param NA First Nonce -- CLIENT NONCE
+     * @param NB Last Nonce -- SERVER NONCE
+     * @return Returns the SecretKey Object
+     * @throws Exception 
+     */
+    public static SecretKey deriveMasterSecret(SecretKey key, Nonce NA, Nonce NB) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        stream.write(key.getEncoded());
+        stream.write(NA.toString().getBytes());
+        stream.write(NB.toString().getBytes());
+        
+        byte[] hash = digest.digest(stream.toByteArray());
+        
+        return new SecretKeySpec(hash, 0, 16, "AES");    
     }
     
 }
