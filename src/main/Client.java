@@ -14,8 +14,10 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -41,6 +43,7 @@ public abstract class Client {
     protected static final String C_ID = "Charlie";
     
     private Map<String, PublicKey> key_map = null;
+    private Set<String> nonces = new HashSet<>();
     
     private String id;
     private String id_KDC;
@@ -52,6 +55,11 @@ public abstract class Client {
     private PublicKey PBK_KDC = null;
     private SecretKey SYM_KEY = null;
     
+    private SecretKey ORIGINAL_KEY = null; // original shared key between client and server
+    private SecretKey ENC_KEY;
+    private SecretKey MAC_KEY;
+    
+    private SecretKey MasterSecret;
     
     private Socket sock = null;
     private PrintWriter output = null;
@@ -62,7 +70,7 @@ public abstract class Client {
     
     
     
-    protected Client(String pbk, String prk, String id, int port) {
+    protected Client(String pbk, String prk, String skey, String id, int port) {
         this.key_map = new HashMap<>();
         this.id = id;
         this.C_PORT = port;
@@ -80,6 +88,7 @@ public abstract class Client {
         try { // Create pub/private keys
             PRK_SELF = Encryption.makePrivateKey(prk);
             PBK_KDC = Encryption.makePublicKey(K_PBK);
+            ORIGINAL_KEY = Encryption.makeSymmetricKey(skey);
         } catch (Exception e) { e.getLocalizedMessage(); }
         
         this.connect(pbk); // Do initial connection
@@ -90,15 +99,75 @@ public abstract class Client {
     private String read() { try { return input.readLine(); } catch (Exception e) { return null;} }
     private void write(String s) { try {  output.println(s); } catch (Exception e) {} }
     
+    /**
+     * Creates the MasterSecret Symmetric Key
+     * @param A The client Nonce
+     * @param B The server Nonce
+     * @return Returns true on success
+     */
+    private boolean makeMasterSecret(Nonce A, Nonce B) {
+        try {
+            MasterSecret = Encryption.deriveMasterSecret(ORIGINAL_KEY, A, B);
+        } catch (Exception e) {
+            return false;
+        }
+        return true;
+    }
     
+    /**
+     * ATM->BANK: E(K_O, UNAME||H(PASSWORD)||NA)
+     * BANK->ATM: E(K_O, NAME||NA||NB)
+     * Initial login step
+     * @return Returns true on successful login
+     */
+    private boolean login() {
+        System.out.print(ansi.YELLOW + "Username: " + ansi.RESET);
+        String uname = SCAN.nextLine(); // Get username
+        System.out.print(ansi.YELLOW + "Password: " + ansi.BLACK + ansi.BGBLACK);
+        String pwd = SCAN.nextLine(); // Get pwrd
+        System.out.print(ansi.RESET);
+        try { // Hash password
+            pwd = Encryption.hash(pwd);
+        } catch (Exception e) { 
+            e.getStackTrace(); 
+            return false;
+        }
+        Nonce n = new Nonce(); // Create new nonce
+        String out = uname + DELIM + pwd + DELIM + n.toString(); // Fill message
+        String enc = Encryption.encrypt(out, ORIGINAL_KEY); // Encrypt message
+        write(enc); // Send msg
+        String in = read(); // Read response
+        String dec = Encryption.decrypt(in, ORIGINAL_KEY); // Decrypt response
+        String splits[] = dec.split(DELIM_REGEX); // Split along delimiter
+        id_KDC = splits[0]; // First is id
+        String my_nonce = splits[1]; // Next is the nonce sent
+        if (!n.equals(Nonce.toNonce(my_nonce))) {  // check nonces match
+            System.out.println(ansi.BOLD + ansi.RED + "Did not recieve the original nonce back -- Discarding message" + ansi.RESET);
+            return false;
+        }
+        
+        String nonce = splits[2]; // Last is a new nonce sent by server
+        if (nonces.contains(nonce)) { // If nonce is seen before
+            System.out.println(ansi.BOLD + ansi.RED + "Received a repeat nonce -- Discarding message" + ansi.RESET);
+            return false;
+        } else { nonces.add(nonce); } // Add to list
+        System.out.println(ansi.GREEN + "Successfully logged in" + ansi.RESET);
+        Nonce b = Nonce.toNonce(nonce);
+        return makeMasterSecret(n, b);
+    }
     
+    /**
+     * Now has the user login step
+     * @param pbk 
+     */
     private void connect(String pbk) {
         String out = pbk;
-        System.out.println("\033[90mInitiating Setup with KDC Server\033[0m");
-        write(out);
-        String in = read(); // Unblocks
-        System.out.println("\033[92mConnected to KDC Server\033[0m");
+        System.out.println(ansi.BBLACK + "Initiating Setup with KDC Server\033[0m" + ansi.RESET);
+        
+        while (!login());
     }
+    
+    
     
     private void sendId() {
         String out = id; // Line 1
@@ -191,6 +260,9 @@ public abstract class Client {
         new Thread(this::messageOthers).start();
     }
     
+    /**
+     * Shuts down the thread
+     */
     private void shutdown() { // Shutdown from termination
         running = false;
         try {
