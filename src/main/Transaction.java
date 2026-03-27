@@ -47,7 +47,7 @@ public class Transaction {
      * @param amount the amount involved in the transaction
      * @return the status of the transaction ("success" or "failed")
      */
-    public String sendAction(Action action, double amount){
+    public String sendAction(Action action, double amount, int ){
         String status = "failed";
         return status;
     }
@@ -60,7 +60,7 @@ public class Transaction {
      * @param message the plaintext transaction message
      * @return the secured (encrypted + MAC) message
      */
-    public String applyTransacationProtocol(String message) {
+    private String applyTransacationProtocol(String message) {
         return message;
     }
 
@@ -73,7 +73,7 @@ public class Transaction {
      * @param customerId the ID of the customer
      * @return true if audit logging succeeds, false otherwise
      */
-    private boolean auditTransaction(Action action, int customerId) {
+    private boolean auditTransaction(Action action) {
         return false;
     }
 }
