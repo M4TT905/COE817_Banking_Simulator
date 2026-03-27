@@ -70,7 +70,7 @@ public abstract class Client {
     
     
     
-    protected Client(String pbk, String prk, String skey, String id, int port) {
+    protected Client(String pbk, String prk, String id, int port) {
         this.key_map = new HashMap<>();
         this.id = id;
         this.C_PORT = port;
@@ -88,16 +88,37 @@ public abstract class Client {
         try { // Create pub/private keys
             PRK_SELF = Encryption.makePrivateKey(prk);
             PBK_KDC = Encryption.makePublicKey(K_PBK);
-            ORIGINAL_KEY = Encryption.makeSymmetricKey(skey);
+            ORIGINAL_KEY = PreprogrammedKeys.getKey(id);
+            if (ORIGINAL_KEY == null) { throw new Exception("Could not get original key"); }
         } catch (Exception e) { e.getLocalizedMessage(); }
         
+        
+        this.syncKeys();
+        
         this.connect(pbk); // Do initial connection
-        this.sendId();
-        this.sendNonces();
+        this.sendId(); // May delete if unecessary
+        this.sendNonces(); // May delete if unecessary
     }
     
-    private String read() { try { return input.readLine(); } catch (Exception e) { return null;} }
+    private String read() { try { return input.readLine(); } catch (IOException e) { return null;} }
     private void write(String s) { try {  output.println(s); } catch (Exception e) {} }
+    
+    private void syncKeys() { // ATM Setup
+        Nonce n = new Nonce();
+        String out = id + DELIM + n.toString();
+        write(out);
+        String in = read(); // id||NA||NB
+        String parts [] = in.split(DELIM_REGEX);
+        id_KDC = parts[0];
+        Nonce n_1 = Nonce.toNonce(parts[1]);
+        Nonce n_b = Nonce.toNonce(parts[2]);
+        if (!n.equals(n_1) || nonces.contains(n_b.toString())) {
+            System.out.println(ansi.BOLD + ansi.BRED + "Nonces aren't working out" + ansi.RESET);
+            System.exit(-1);
+        }
+        nonces.add(n_b.toString());
+        // By this point server & client agree on key
+    }
     
     /**
      * Creates the MasterSecret Symmetric Key
@@ -108,6 +129,7 @@ public abstract class Client {
     private boolean makeMasterSecret(Nonce A, Nonce B) {
         try {
             MasterSecret = Encryption.deriveMasterSecret(ORIGINAL_KEY, A, B);
+            //System.out.println(MasterSecret.toString()); // Debug to see if keys match
         } catch (Exception e) {
             return false;
         }
@@ -121,6 +143,9 @@ public abstract class Client {
      * @return Returns true on successful login
      */
     private boolean login() {
+        
+        // ATM->BANK: E(K_O, UNAME||H(PASSWORD)||NA)
+        
         System.out.print(ansi.YELLOW + "Username: " + ansi.RESET);
         String uname = SCAN.nextLine(); // Get username
         System.out.print(ansi.YELLOW + "Password: " + ansi.BLACK + ansi.BGBLACK);
@@ -136,7 +161,11 @@ public abstract class Client {
         String out = uname + DELIM + pwd + DELIM + n.toString(); // Fill message
         String enc = Encryption.encrypt(out, ORIGINAL_KEY); // Encrypt message
         write(enc); // Send msg
+        
+        // BANK->ATM: E(K_O, NAME||NA||NB)
+        
         String in = read(); // Read response
+        if (in.equals("ERROR")) { return false; }
         String dec = Encryption.decrypt(in, ORIGINAL_KEY); // Decrypt response
         String splits[] = dec.split(DELIM_REGEX); // Split along delimiter
         id_KDC = splits[0]; // First is id
@@ -168,7 +197,9 @@ public abstract class Client {
     }
     
     
-    
+    /**
+     * MAY NOT NEED
+     */
     private void sendId() {
         String out = id; // Line 1
         write(out);
@@ -180,6 +211,9 @@ public abstract class Client {
         id_KDC = msg[1];
     }
     
+    /**
+     * MAY NOT NEED
+     */
     private void sendNonces() {
         String out = N_self.toString() + DELIM + N_KDC.toString();
         String enc = Encryption.encrypt(out, PBK_KDC);

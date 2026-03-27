@@ -67,7 +67,9 @@ public class KDCThread implements Runnable{
     private String read() { try { return input.readLine(); } catch (Exception e) { return null;} }
     private void write(String s) { try { output.println(s); } catch (Exception e) {} }
     
-    
+    /**
+     * Get the client and server thread to decide on a original preprogrammed symmetric key
+     */
     private void syncKeys() {
         String in = read();
         String parts[] = in.split(KDC.DELIM_REGEX);
@@ -90,7 +92,30 @@ public class KDCThread implements Runnable{
         // By this point server & client agree on key
     }
     
+    /**
+     * Creates the MasterSecret Symmetric Key
+     * @param A The client Nonce
+     * @param B The server Nonce
+     * @return Returns true on success
+     */
+    private boolean makeMasterSecret(Nonce A, Nonce B) {
+        try {
+            MasterSecret = Encryption.deriveMasterSecret(ORIGINAL_KEY, A, B);
+            //System.out.println(MasterSecret.toString()); // Debug to see if keys match
+        } catch (Exception e) {
+            return false;
+        }
+        return true;
+    }
+    
+    /**
+     * Logs the user in
+     * @return Returns true on successful login
+     */
     private boolean loginUser() {
+        
+        // ATM->BANK: E(K_O, UNAME||H(PASSWORD)||NA)
+        
         String in = read();
         String dec = Encryption.decrypt(in, ORIGINAL_KEY);
         String parts[] = dec.split(KDC.DELIM_REGEX);
@@ -98,10 +123,19 @@ public class KDCThread implements Runnable{
         String password_hash = parts[1];
         Nonce N_A = Nonce.toNonce(parts[2]);
         
+        if (nonces.contains(N_A.toString())) { return false; } // Check that nonce is fresh
+        if (!users.containsKey(username)) { return false; } // Check that username exists -- REDUNDANT
         String stored_password = users.get(username);
-        
+        if (!password_hash.equals(stored_password)) { return false; } // If pwd hashes dont match
     
-        return false;
+        // BANK->ATM: E(K_O, NAME||NA||NB)
+        
+        Nonce N_B = new Nonce();
+        String out = KDC.ID + KDC.DELIM + N_A.toString() + KDC.DELIM + N_B.toString();
+        String enc = Encryption.encrypt(out, ORIGINAL_KEY);
+        write(enc);
+        
+        return makeMasterSecret(N_A, N_B);
     }
     
     
@@ -110,7 +144,9 @@ public class KDCThread implements Runnable{
     private void setup() {
         cd = new ClientData();
         
-        loginUser();
+        while (!loginUser()) {
+            write("ERROR");
+        }
         
         // Read input
         String in = read();
