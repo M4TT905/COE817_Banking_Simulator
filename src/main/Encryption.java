@@ -236,5 +236,34 @@ public class Encryption {
         
         return new SecretKeySpec(hash, 0, 16, "AES");    
     }
-    
+    /**
+     * Generates an HMAC (Hash-based Message Authentication Code) for a given message
+     * using the provided secret key.
+     *
+     * <p>An HMAC is used to ensure both the integrity and authenticity of a message.
+     * It combines a cryptographic hash function with a secret key.</p>
+     *
+     * @param key the secret key used to generate the HMAC
+     * @param message the input message to be authenticated
+     * @return a String representation of the generated HMAC
+     */
+    public static String generateHMAC(SecretKey key, String message) {
+        return "";
+    }
+
+    /**
+     * Verifies whether a given HMAC matches the HMAC generated from the provided
+     * message and secret key.
+     *
+     * <p>This method recomputes the HMAC using the same key and message, then compares
+     * it with the provided HMAC to check for integrity and authenticity.</p>
+     *
+     * @param key the secret key used to generate the HMAC
+     * @param message the original message to verify
+     * @param Hmac the HMAC value to compare against
+     * @return true if the HMAC is valid and matches; false otherwise
+     */
+    public static Boolean verifyHMAC(SecretKey key, String message, String Hmac) {
+        return false;
+    }
 }
