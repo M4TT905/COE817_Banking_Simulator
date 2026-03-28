@@ -87,7 +87,7 @@ public class Transaction {
      * @return the reconstructed Action object
      * @throws IllegalArgumentException if HMAC verification fails or message format is invalid
      */
-    private Action removeAndVerifyTransacationProtocol(String message, Key encryptKey, Key HMACkey)
+    public Action removeAndVerifyTransacationProtocol(String message, Key encryptKey, Key HMACkey)
             throws IllegalArgumentException {
 
         String[] messages = message.split("\\|");
