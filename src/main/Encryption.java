@@ -247,7 +247,7 @@ public class Encryption {
      * @param message the input message to be authenticated
      * @return a String representation of the generated HMAC
      */
-    public static String generateHMAC(SecretKey key, String message) {
+    public static String generateHMAC(Key key, String message) {
         return "";
     }
 
@@ -263,7 +263,7 @@ public class Encryption {
      * @param Hmac the HMAC value to compare against
      * @return true if the HMAC is valid and matches; false otherwise
      */
-    public static Boolean verifyHMAC(SecretKey key, String message, String Hmac) {
+    public static Boolean verifyHMAC(Key key, String message, String Hmac) {
         return false;
     }
 }
