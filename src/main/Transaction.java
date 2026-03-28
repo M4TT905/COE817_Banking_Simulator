@@ -52,25 +52,6 @@ public class Transaction {
     }
 
     /**
-     * Processes an incoming secured message.
-     * This method is intended to:
-     * - Verify the HMAC
-     * - Decrypt the message
-     * - Convert it back into an Action object
-     *
-     * NOTE: Method implementation is incomplete.
-     *
-     * @param message the received secured message
-     * @return the processed message result (implementation dependent)
-     */
-    public String processActionMessage(String message) {
-
-        String processedMessage = null;
-
-        return processedMessage;
-    }
-
-    /**
      * Applies the transaction security protocol to a plaintext message.
      * The protocol consists of:
      * 1. Encrypting the message
