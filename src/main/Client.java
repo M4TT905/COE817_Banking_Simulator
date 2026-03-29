@@ -129,7 +129,9 @@ public abstract class Client {
     private boolean makeMasterSecret(Nonce A, Nonce B) {
         try {
             MasterSecret = Encryption.deriveMasterSecret(ORIGINAL_KEY, A, B);
-            //System.out.println(MasterSecret.toString()); // Debug to see if keys match
+ENC_KEY = Encryption.deriveEncryptionKey(MasterSecret);
+MAC_KEY = Encryption.deriveHMACKey(MasterSecret);
+            //System.out.println(MasterSecret.toString()); // Debug to see if keys match, MP:added 2 more secret keys
         } catch (Exception e) {
             return false;
         }

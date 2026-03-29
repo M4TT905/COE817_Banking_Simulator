@@ -4,12 +4,12 @@
  */
 package main;
 
-import java.security.Key;
-import java.time.LocalDateTime;
+import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.BufferedWriter;
 import java.io.PrintWriter;
+import java.security.Key;
+import java.time.LocalDateTime;
 /**
  * The Transaction class represents secure banking operations between an ATM client
  * and a bank server. It supports actions such as withdrawal, deposit,
@@ -92,12 +92,11 @@ public class Transaction {
 
         String[] messages = message.split("\\|");
 
-        String decryptedMessage = Encryption.decrypt(messages[1], encryptKey);
+       if (!Encryption.verifyHMAC(HMACkey, messages[1], messages[0])) {
+    throw new IllegalArgumentException("HMAC Invalid");
+}
 
-        if (!Encryption.verifyHMAC(HMACkey, decryptedMessage, messages[0])) {
-            throw new IllegalArgumentException("HMAC Invalid");
-        }
-
+String decryptedMessage = Encryption.decrypt(messages[1], encryptKey);
         String[] actionValue = decryptedMessage.split("\\|");
 
         return new Action(

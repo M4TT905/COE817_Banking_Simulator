@@ -1,14 +1,25 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
+//MP: this was empty... so in order to test part 3 i had to fill it up with code, now this code here is a placeholder feel free to remove it only if needed!
 package main;
 
-/**
- *
- * @author matthewhvizdos
- */
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+
 public class PreprogrammedKeys {
-    
+
+    public static SecretKey getKey(String id) {
+        try {
+            // Simple fixed keys for testing (must be 16 bytes for AES-128)
+            if (id.equals("Alice")) {
+                return new SecretKeySpec("AAAAAAAAAAAAAAAA".getBytes(), "AES");
+            } else if (id.equals("Bob")) {
+                return new SecretKeySpec("BBBBBBBBBBBBBBBB".getBytes(), "AES");
+            } else if (id.equals("Charlie")) {
+                return new SecretKeySpec("CCCCCCCCCCCCCCCC".getBytes(), "AES");
+            } else {
+                return null;
+            }
+        } catch (Exception e) {
+            return null;
+        }
+    }
 }

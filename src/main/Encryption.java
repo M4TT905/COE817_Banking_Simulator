@@ -6,22 +6,19 @@ import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.KeyFactory;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
-import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
+import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 /*
- * To change this license header, choose License Headers in Project Properties.
+ * To change this license header, choose License Headers in Project Properties. Manveer:added import javax.crypto.Mac;
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
@@ -234,8 +231,32 @@ public class Encryption {
         
         byte[] hash = digest.digest(stream.toByteArray());
         
-        return new SecretKeySpec(hash, 0, 16, "AES");    
+        return new SecretKeySpec(hash, 0, 16, "AES");
+            
     }
+    public static SecretKey deriveEncryptionKey(SecretKey masterSecret) throws Exception {
+    MessageDigest digest = MessageDigest.getInstance("SHA-256");
+
+    ByteArrayOutputStream stream = new ByteArrayOutputStream();
+    stream.write(masterSecret.getEncoded());
+    stream.write("ENC".getBytes(StandardCharsets.UTF_8));
+
+    byte[] hash = digest.digest(stream.toByteArray());
+
+    return new SecretKeySpec(hash, 0, 16, "AES");
+}
+
+public static SecretKey deriveHMACKey(SecretKey masterSecret) throws Exception {
+    MessageDigest digest = MessageDigest.getInstance("SHA-256");
+
+    ByteArrayOutputStream stream = new ByteArrayOutputStream();
+    stream.write(masterSecret.getEncoded());
+    stream.write("MAC".getBytes(StandardCharsets.UTF_8));
+
+    byte[] hash = digest.digest(stream.toByteArray());
+
+    return new SecretKeySpec(hash, 0, 32, "HmacSHA256");
+}
     /**
      * Generates an HMAC (Hash-based Message Authentication Code) for a given message
      * using the provided secret key.
@@ -248,8 +269,15 @@ public class Encryption {
      * @return a String representation of the generated HMAC
      */
     public static String generateHMAC(Key key, String message) {
-        return "";
+    try {
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init((SecretKey) key);
+        byte[] hmacBytes = mac.doFinal(message.getBytes(StandardCharsets.UTF_8));
+        return Base64.getEncoder().encodeToString(hmacBytes);
+    } catch (Exception e) {
+        return null;
     }
+}
 
     /**
      * Verifies whether a given HMAC matches the HMAC generated from the provided
@@ -263,7 +291,12 @@ public class Encryption {
      * @param Hmac the HMAC value to compare against
      * @return true if the HMAC is valid and matches; false otherwise
      */
-    public static Boolean verifyHMAC(Key key, String message, String Hmac) {
+  public static Boolean verifyHMAC(Key key, String message, String Hmac) {
+    try {
+        String recalculatedHMAC = generateHMAC(key, message);
+        return recalculatedHMAC != null && recalculatedHMAC.equals(Hmac);
+    } catch (Exception e) {
         return false;
     }
+}
 }
