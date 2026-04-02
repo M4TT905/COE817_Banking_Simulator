@@ -189,13 +189,23 @@ MAC_KEY = Encryption.deriveHMACKey(MasterSecret);
     
     /**
      * Now has the user login step
+     * Write pubkey and check connected
      * @param pbk 
      */
     private void connect(String pbk) {
         String out = pbk;
         System.out.println(ansi.BBLACK + "Initiating Setup with KDC Server\033[0m" + ansi.RESET);
         
-        while (!login());
+        while (!login()) {
+            System.out.println(ansi.RED + "Login failed. Try again." + ansi.RESET);
+        }
+
+        write(pbk);
+
+        String response = read();
+        if (!"connected".equals(response)) {
+            throw new RuntimeException("Failed, expected 'connected' but got: " + response);
+        }
     }
     
     
@@ -236,64 +246,163 @@ MAC_KEY = Encryption.deriveHMACKey(MasterSecret);
         SYM_KEY = new SecretKeySpec(key_bytes, "AES");
     }
     
-    private void listen() { 
-        while (running) {
-            String in = read();
-            if (in == null) { break; }
-            if (in.charAt(0) == RESERVED_CHAR) { // CHAR|ID|PUBK
-                String other_id = in.split(DELIM_REGEX)[1];
-                if (other_id.equals(this.id) || key_map.containsKey(other_id)) { continue; }
-                String other_pbk = in.split(DELIM_REGEX)[2];
-                try { 
-                    key_map.put(other_id, Encryption.makePublicKey(other_pbk)); 
-                    System.out.println("Added new public key : \033[32m" + this.id + DELIM + other_id + "\033[0m");
-                } catch (Exception e) { System.out.println("\033[31mCould not add public key\033[0m"); }
-                
-            } else { // E(Ks, [IDclient, M])||Sigclient(IDclient, M)
-                String text[] = in.split(DELIM_REGEX);
-                String M = Encryption.decrypt(text[0], SYM_KEY);
-                System.out.println("\nMessage : \033[31m" + M + "\033[0m");
-                System.out.println("Signature : \033[32m" + text[1] + "\033[0m");
-                String valid[] = M.split(DELIM_REGEX); // valid[0] = id, valid[1] = M
-                System.out.println(valid[0] + " and " + this.id);
-                if  (valid[0].equals(this.id)) { continue; }
-                
-                PublicKey pk = key_map.get(valid[0]);
-                if (pk == null) { continue; } // Doesnt know who sent the msg
-                boolean verified = false;
-                
-                try { // Check if the signature is valid
-                    verified = Encryption.verify(valid[1], Encryption.conv(text[1]), pk);
-                } catch (Exception e) {}
-                
-                if (!verified) {
-                    System.out.println("Received an unverified message -- msg thown out");
-                    continue;
+//    private void listen() { 
+//        while (running) {
+//            String in = read();
+//            if (in == null) { break; }
+//            if (in.charAt(0) == RESERVED_CHAR) { // CHAR|ID|PUBK
+//                String other_id = in.split(DELIM_REGEX)[1];
+//                if (other_id.equals(this.id) || key_map.containsKey(other_id)) { continue; }
+//                String other_pbk = in.split(DELIM_REGEX)[2];
+//                try { 
+//                    key_map.put(other_id, Encryption.makePublicKey(other_pbk)); 
+//                    System.out.println("Added new public key : \033[32m" + this.id + DELIM + other_id + "\033[0m");
+//                } catch (Exception e) { System.out.println("\033[31mCould not add public key\033[0m"); }
+//                
+//            } else { // E(Ks, [IDclient, M])||Sigclient(IDclient, M)
+//                String text[] = in.split(DELIM_REGEX);
+//                String M = Encryption.decrypt(text[0], SYM_KEY);
+//                System.out.println("\nMessage : \033[31m" + M + "\033[0m");
+//                System.out.println("Signature : \033[32m" + text[1] + "\033[0m");
+//                String valid[] = M.split(DELIM_REGEX); // valid[0] = id, valid[1] = M
+//                System.out.println(valid[0] + " and " + this.id);
+//                if  (valid[0].equals(this.id)) { continue; }
+//                
+//                PublicKey pk = key_map.get(valid[0]);
+//                if (pk == null) { continue; } // Doesnt know who sent the msg
+//                boolean verified = false;
+//                
+//                try { // Check if the signature is valid
+//                    verified = Encryption.verify(valid[1], Encryption.conv(text[1]), pk);
+//                } catch (Exception e) {}
+//                
+//                if (!verified) {
+//                    System.out.println("Received an unverified message -- msg thown out");
+//                    continue;
+//                }
+//                
+//                System.out.print("Received a verifid message from " + valid[0] + ": \033[93m");
+//                System.out.println(valid[1] + "\033[0m");
+//                System.out.print("What message would you like to send: ");
+//            }
+//        }
+//    }
+    /**
+     * 
+     */
+//    private void listen(){
+//        Transaction t = new Transaction();
+//        
+//        while(running){
+//            try{
+//                String in = read();
+//                if(in == null){
+//                    break;
+//                }
+//                
+//                Action response = t.removeAndVerifyTransacationProtocol(in, ENC_KEY, MAC_KEY);
+//
+//                switch (response.actionType) {
+//                    case inquiry:
+//                        System.out.println(ansi.GREEN + "\nCurrent balance: " + response.amount + ansi.RESET);
+//                        break;
+//                    case deposit:
+//                        System.out.println(ansi.GREEN + "Deposit response received: " + response.amount + ansi.RESET);
+//                        break;
+//                    case withdraw:
+//                        System.out.println(ansi.GREEN + "Withdraw response received: " + response.amount + ansi.RESET);
+//                        break;
+//                    default:
+//                        System.out.println("Received response: " + response.actionType + " " + response.amount);
+//                        break;
+//                }
+//            } catch(Exception e){
+//                System.out.println(ansi.RED + "Failed to read/verify server response: " + e.getMessage() + ansi.RESET);
+//            }
+//        }
+//    }
+    
+//    private void messageOthers() { // Client -> KDC : E(Ks, [IDclient, M]) || Sig_client(IDclient, M)
+//        while (running) {
+//            System.out.print("What message would you like to send: ");
+//            String M = SCAN.nextLine();
+//            String sig = Encryption.sign(M, PRK_SELF);
+//            String msg = this.id + DELIM + M;
+//            String enc = Encryption.encrypt(msg, SYM_KEY);
+//            write(enc + DELIM + sig + DELIM + new Nonce().toString()); // Adds a nonce to prevent replay
+//            System.out.println("Sent message");
+//        }
+//    }
+    
+    /**
+     * Loop to handle deposit/withdraw/balance
+     */
+    private void transactionLoop(){
+        Transaction t = new Transaction();
+        
+        while(running) {
+            
+          System.out.print(ansi.YELLOW + "Enter action (deposit/withdraw/inquire/exit): " + ansi.RESET);
+          
+          String actionType = SCAN.nextLine();
+          
+          if (actionType.equals("exit")) {
+                shutdown();
+                break;
+            }
+          
+          Action action;
+          
+          if(actionType.equals("deposit") || actionType.equals("withdraw")){
+              System.out.print("Please enter amount: ");
+              double amount = Double.parseDouble(SCAN.nextLine());
+              action = new Action(Action.ActionType.valueOf(actionType), amount);
+          }
+          else if (actionType.equals("inquire")){
+              action = new Action(Action.ActionType.inquiry);
+          }
+          else{
+              System.out.println("Invalid Command.");
+              continue;
+          }
+          
+          String msg = t.createActionMessage(action, ENC_KEY, MAC_KEY);
+          write(msg);
+          
+          try{
+                String in = read();
+                if(in == null){
+                    break;
                 }
                 
-                System.out.print("Received a verifid message from " + valid[0] + ": \033[93m");
-                System.out.println(valid[1] + "\033[0m");
-                System.out.print("What message would you like to send: ");
+                Action response = t.removeAndVerifyTransacationProtocol(in, ENC_KEY, MAC_KEY);
+
+                switch (response.actionType) {
+                    case inquiry:
+                        System.out.println(ansi.GREEN + "Current balance: " + response.amount + ansi.RESET);
+                        break;
+                    case deposit:
+                        System.out.println(ansi.GREEN + "Deposit response received: " + response.amount + ansi.RESET);
+                        break;
+                    case withdraw:
+                        System.out.println(ansi.GREEN + "Withdraw response received: " + response.amount + ansi.RESET);
+                        break;
+                    default:
+                        System.out.println("Received response: " + response.actionType + " " + response.amount);
+                        break;
+                }
+            } catch(Exception e){
+                System.out.println(ansi.RED + "Failed to read/verify server response: " + e.getMessage() + ansi.RESET);
             }
-        }
-    }
-    
-    private void messageOthers() { // Client -> KDC : E(Ks, [IDclient, M]) || Sig_client(IDclient, M)
-        while (running) {
-            System.out.print("What message would you like to send: ");
-            String M = SCAN.nextLine();
-            String sig = Encryption.sign(M, PRK_SELF);
-            String msg = this.id + DELIM + M;
-            String enc = Encryption.encrypt(msg, SYM_KEY);
-            write(enc + DELIM + sig + DELIM + new Nonce().toString()); // Adds a nonce to prevent replay
-            System.out.println("Sent message");
+            
         }
     }
     
     private void run () { // Main client loop
-        new Thread(this::listen).start();
-        try { TimeUnit.SECONDS.sleep(5); } catch (Exception e) {}
-        new Thread(this::messageOthers).start();
+//        new Thread(this::listen).start();
+//        try { TimeUnit.SECONDS.sleep(1); } catch (Exception e) {}
+        transactionLoop();
+        
     }
     
     /**

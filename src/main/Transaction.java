@@ -70,6 +70,7 @@ public class Transaction {
         String encryptedMessage = Encryption.encrypt(message, encryptKey);
         String processedMessage = Encryption.generateHMAC(HMACkey, encryptedMessage) + "|" + encryptedMessage;
 
+        
         return processedMessage;
     }
 
@@ -120,7 +121,7 @@ String decryptedMessage = Encryption.decrypt(messages[1], encryptKey);
      * @return true if the transaction is successfully logged, false otherwise
      * @throws IOException if a file writing error occurs
      */
-    private boolean auditTransaction(Action action, String id, Key key) throws IOException {
+    public boolean auditTransaction(Action action, String id, Key key) throws IOException {
 
         LocalDateTime now = LocalDateTime.now();
         String auditDetails = action.toString() + " " + id + " " + now;

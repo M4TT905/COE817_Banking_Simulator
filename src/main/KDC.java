@@ -40,7 +40,7 @@ public class KDC {
     private BlockingQueue<String> notifications = new LinkedBlockingQueue<>();
     
     // Where usernames/pwrds are stored
-    private static final String USER_FILENAME = "";
+    private static final String USER_FILENAME = "user.txt";
     protected Map<String, String> users = new ConcurrentHashMap<>(); 
     
     private Socket csock = null;        // Client Socket

@@ -15,6 +15,8 @@ public class PreprogrammedKeys {
                 return new SecretKeySpec("BBBBBBBBBBBBBBBB".getBytes(), "AES");
             } else if (id.equals("Charlie")) {
                 return new SecretKeySpec("CCCCCCCCCCCCCCCC".getBytes(), "AES");
+            } else if (id.equals("AUDIT")) {
+                return new SecretKeySpec("0123456789ABCDEF".getBytes(), "AES");
             } else {
                 return null;
             }

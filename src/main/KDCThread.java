@@ -15,6 +15,7 @@ import java.security.PrivateKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -44,6 +45,11 @@ public class KDCThread implements Runnable{
     
     private final Map<String, String> users;
     
+    private static final Map<String, Double> balances = new HashMap<>();
+    private String currentUsername;
+    private SecretKey ENC_KEY;
+    private SecretKey MAC_KEY;
+    private static final SecretKey AUDIT_KEY = PreprogrammedKeys.getKey("AUDIT");
     
     public KDCThread(Socket csock, Map<String, ClientData> key_map, BlockingQueue<String> notifications, Map<String, String> users) {
         this.csock = csock;
@@ -101,6 +107,9 @@ public class KDCThread implements Runnable{
     private boolean makeMasterSecret(Nonce A, Nonce B) {
         try {
             MasterSecret = Encryption.deriveMasterSecret(ORIGINAL_KEY, A, B);
+            
+            ENC_KEY = Encryption.deriveEncryptionKey(MasterSecret);
+            MAC_KEY = Encryption.deriveHMACKey(MasterSecret);
             //System.out.println(MasterSecret.toString()); // Debug to see if keys match
         } catch (Exception e) {
             return false;
@@ -134,6 +143,10 @@ public class KDCThread implements Runnable{
         String out = KDC.ID + KDC.DELIM + N_A.toString() + KDC.DELIM + N_B.toString();
         String enc = Encryption.encrypt(out, ORIGINAL_KEY);
         write(enc);
+        
+        // Set currentUsername
+        currentUsername = username;
+        balances.putIfAbsent(currentUsername, 0.0);
         
         return makeMasterSecret(N_A, N_B);
     }
@@ -210,25 +223,67 @@ public class KDCThread implements Runnable{
         }
     }
     
-    private void listen(String s) { // We are the creator in this situation
-        String [] msgs = s.split(KDC.DELIM_REGEX); // SELF | OTHER
-        String msg = Encryption.decrypt(msgs[0], cd.getSKey());
-        String sig = msgs[1];
-        String nonce = msgs[2]; // Read the nonce to see if it has already been received
-        if (nonces.contains(nonce)) {
-            System.out.println("Received a repeat nonce -- Discarding message");
-            return;
-        } else { nonces.add(nonce); }
-        
-        String notif = KDC.MSG_UPDATE + KDC.U_DELIM + msg + KDC.DELIM + sig;
-        System.out.println("Notification : \033[35m" + notif + "\033[0m");
-        int otherThreads = map.size();
-        if (otherThreads <= 0) {
-            System.out.println("No other clients to send to");
-            return;
+//    private void listen(String s) { // We are the creator in this situation
+//        String [] msgs = s.split(KDC.DELIM_REGEX); // SELF | OTHER
+//        String msg = Encryption.decrypt(msgs[0], cd.getSKey());
+//        String sig = msgs[1];
+//        String nonce = msgs[2]; // Read the nonce to see if it has already been received
+//        if (nonces.contains(nonce)) {
+//            System.out.println("Received a repeat nonce -- Discarding message");
+//            return;
+//        } else { nonces.add(nonce); }
+//        
+//        String notif = KDC.MSG_UPDATE + KDC.U_DELIM + msg + KDC.DELIM + sig;
+//        System.out.println("Notification : \033[35m" + notif + "\033[0m");
+//        int otherThreads = map.size();
+//        if (otherThreads <= 0) {
+//            System.out.println("No other clients to send to");
+//            return;
+//        }
+//        
+//        for (int i = 0; i < otherThreads; i ++) { notifications.offer(notif); } // Send once per active thread (including self)
+//    }
+    
+    private void listen(String s) {
+        try {
+            Transaction t = new Transaction();
+
+            Action action = t.removeAndVerifyTransacationProtocol(s, ENC_KEY, MAC_KEY);
+
+            double currentBalance = balances.getOrDefault(currentUsername, 0.0);
+
+            switch (action.actionType) {
+                case deposit:
+                    if (action.amount > 0) {
+                        currentBalance += action.amount;
+                        balances.put(currentUsername, currentBalance);
+                    }
+                    break;
+
+                case withdraw:
+                    if (action.amount > 0 && currentBalance >= action.amount) {
+                        currentBalance -= action.amount;
+                        balances.put(currentUsername, currentBalance);
+                    }
+                    break;
+
+                case inquiry:
+                    break;
+            }
+
+            t.auditTransaction(action, currentUsername, AUDIT_KEY);
+
+            Action responseAction = new Action(Action.ActionType.inquiry, currentBalance);
+            String securedResponse = t.createActionMessage(responseAction, ENC_KEY, MAC_KEY);
+            write(securedResponse);
+
+        } catch (IllegalArgumentException e) {
+            System.out.println("Invalid transaction: " + e.getMessage());
+
+        } catch (Exception e) {
+            e.printStackTrace();
+
         }
-        
-        for (int i = 0; i < otherThreads; i ++) { notifications.offer(notif); } // Send once per active thread (including self)
     }
     
     private void manageNotifications(String notif) {
@@ -247,15 +302,20 @@ public class KDCThread implements Runnable{
         try { TimeUnit.SECONDS.sleep(1); } catch (Exception e) {}
     }
     
-    private void socket_input() {
-        while (running) {
+    private void socket_input(){
+        try{
+            while (running) {
             String in = read();
             if  (in == null) {
                 shutdown();
                 break;
             }
             listen(in);
+            }
+        } catch(Exception e){
+            e.printStackTrace();
         }
+        
     }
     
     private void handle_notif() {
@@ -284,6 +344,7 @@ public class KDCThread implements Runnable{
     
     @Override
     public void run() {
+        syncKeys();
         setup();
         getId();
         nonceRespond();
