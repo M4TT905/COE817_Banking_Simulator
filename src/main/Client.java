@@ -129,8 +129,8 @@ public abstract class Client {
     private boolean makeMasterSecret(Nonce A, Nonce B) {
         try {
             MasterSecret = Encryption.deriveMasterSecret(ORIGINAL_KEY, A, B);
-ENC_KEY = Encryption.deriveEncryptionKey(MasterSecret);
-MAC_KEY = Encryption.deriveHMACKey(MasterSecret);
+            ENC_KEY = Encryption.deriveEncryptionKey(MasterSecret);
+            MAC_KEY = Encryption.deriveHMACKey(MasterSecret);
             //System.out.println(MasterSecret.toString()); // Debug to see if keys match, MP:added 2 more secret keys
         } catch (Exception e) {
             return false;
@@ -373,6 +373,8 @@ MAC_KEY = Encryption.deriveHMACKey(MasterSecret);
                 String in = read();
                 if(in == null){
                     break;
+                } else if (in.charAt(0) == RESERVED_CHAR) {
+                    in = read();
                 }
                 
                 Action response = t.removeAndVerifyTransacationProtocol(in, ENC_KEY, MAC_KEY);

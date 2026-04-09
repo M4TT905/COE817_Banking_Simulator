@@ -13,9 +13,8 @@ import java.net.Socket;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.util.Base64;
-import java.util.HashSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -297,7 +296,7 @@ public class KDCThread implements Runnable{
             String M = temp[0] + KDC.DELIM + temp[1];
             String sig = temp[2];
             String enc = Encryption.encrypt(M, cd.getSKey()) + KDC.DELIM + sig;
-            write(enc);
+            //write(enc);
         } 
         try { TimeUnit.SECONDS.sleep(1); } catch (Exception e) {}
     }

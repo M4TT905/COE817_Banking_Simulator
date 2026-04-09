@@ -26,4 +26,15 @@ public class Action {
         this.actionType=actionType;
         this.amount = 0;
     }    
+    
+    @Override
+    public String toString() {
+        switch (this.actionType) {
+            case withdraw:  return "withdraw";
+            case deposit:   return "deposit";
+            case inquiry:   return "inquiry";
+            default:        return "ERROR";
+        }
+    }
+    
 }
